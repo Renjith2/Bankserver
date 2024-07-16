@@ -5,6 +5,7 @@ const router = require('express').Router();
 const User = require('../Schema/userSchema/userSchema');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const authmiddleware = require('../middlewares/authmiddleware');
 
 router.post('/register', async (req, res) => {
     const {
@@ -79,12 +80,73 @@ router.post('/register', async (req, res) => {
 
         res.status(201).json({
             message: 'User registered successfully',
-            token
+            data:token
         });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+
+
+
+router.post('/login', async (req, res) => {
+    const { userName, password, mobileNumber, otp } = req.body;
+
+    try {
+        // Check if the user exists
+        const user = await User.findOne({ userName });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Validate password
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Check if mobile number matches
+        if (user.mobileNumber !== mobileNumber) {
+            return res.status(400).json({ error: 'Invalid credentials' });
+        }
+
+        // Validate OTP (assuming you have a predefined OTP stored somewhere)
+        const storedOTP = '123456'; // Example stored OTP, replace with actual logic to retrieve OTP
+        if (otp !== storedOTP) {
+            return res.status(400).json({ error: 'Invalid OTP' });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        res.status(200).json({
+            message: 'Login successful',
+           data:token
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/get-current-user',authmiddleware, async(req,res)=>{
+    try {
+        const user= await User.findById(req.body.userid).select('-password')
+        res.send({
+            success:true,
+            messgae:"User Details Fetched Successfully",
+            data:user
+        })
+    } catch (error) {
+        res.send({
+           success:false,
+           message:error.message
+        })
+    }
+
+})
+
 
 module.exports = router;
